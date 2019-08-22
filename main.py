@@ -32,193 +32,267 @@ app = Flask(__name__)
 log = app.logger
 
 
-@app.route('/', methods=['POST'])
+@app.route('/webhook', methods=['POST'])
 def webhook():
-    """This method handles the http requests for the Dialogflow webhook
-
-    This is meant to be used in conjunction with the weather Dialogflow agent
-    """
     req = request.get_json(silent=True, force=True)
+
+    print("Request: Ritu")
+    print(json.dumps(req, indent=4))
+
+    res = processRequest(req)
+
+    res = json.dumps(res, indent=4)
+    print(res)
+    r = make_response(jsonify({'fulfillmentText': res}))
+    return r
+
+
+def processRequest(req):
+
     try:
         action = req.get('queryResult').get('action')
     except AttributeError:
         return 'json error'
 
-    if action == 'weather':
-        res = weather(req)
-    elif action == 'weather.activity':
-        res = weather_activity(req)
-    elif action == 'weather.condition':
-        res = weather_condition(req)
-    elif action == 'weather.outfit':
-        res = weather_outfit(req)
-    elif action == 'weather.temperature':
-        res = weather_temperature(req)
+    print(action)
+
+    if action == 'bot_register_user_demo':
+        res = registerUser(req)
     else:
         log.error('Unexpected action.')
 
-    print('Action: ' + action)
-    print('Response: ' + res)
+    #data = json.loads(result)
 
-    return make_response(jsonify({'fulfillmentText': res}))
+    return res
 
 
-def weather(req):
+def registerUser(req):
     """Returns a string containing text with a response to the user
     with the weather forecast or a prompt for more information
 
     Takes the city for the forecast and (optional) dates
     uses the template responses found in weather_responses.py as templates
     """
-    parameters = req['queryResult']['parameters']
 
+    head = parameters = req['queryResult']['parameters']
+    print(head)
     print('Dialogflow Parameters:')
-    print(json.dumps(parameters, indent=4))
+    print(json.dumps(head, indent=4))
 
-    # validate request parameters, return an error if there are issues
-    error, forecast_params = validate_params(parameters)
-    if error:
-        return error
-
-    # create a forecast object which retrieves the forecast from a external API
-    try:
-        forecast = Forecast(forecast_params)
-    # return an error if there is an error getting the forecast
-    except (ValueError, IOError) as error:
-        return error
-
-    # If the user requests a datetime period (a date/time range), get the
-    # response
-    if forecast.datetime_start and forecast.datetime_end:
-        response = forecast.get_datetime_period_response()
-    # If the user requests a specific datetime, get the response
-    elif forecast.datetime_start:
-        response = forecast.get_datetime_response()
-    # If the user doesn't request a date in the request get current conditions
-    else:
-        response = forecast.get_current_response()
+    # headers = {'phone': head.get('phone'),
+    #             'name': head.get('name'),
+    #             'email': head.get('email')
+    #             }
+    # print("****************************")
+    # print(headers)
+    # cal = submit_form_demo('bot_register_user_demo', headers)
+    response = {
+        "speech": "Please enter the OTP sent on your phone number.",
+        "displayText": "Please enter the OTP sent on your phone number.",
+        # "contextOut": [],
+        "source": "apiai-webhook-sample"
+    }
 
     return response
 
 
-def weather_activity(req):
-    """Returns a string containing text with a response to the user
-    with a indication if the activity provided is appropriate for the
-    current weather or a prompt for more information
+def submit_form_demo(action_name, headers):
+    print("**************############**************")
 
-    Takes a city, activity and (optional) dates
-    uses the template responses found in weather_responses.py as templates
-    and the activities listed in weather_entities.py
-    """
-
-    # validate request parameters, return an error if there are issues
-    error, forecast_params = validate_params(req['queryResult']['parameters'])
-    if error:
-        return error
-
-    # Check to make sure there is a activity, if not return an error
-    if not forecast_params['activity']:
-        return 'What activity were you thinking of doing?'
-
-    # create a forecast object which retrieves the forecast from a external API
-    try:
-        forecast = Forecast(forecast_params)
-    # return an error if there is an error getting the forecast
-    except (ValueError, IOError) as error:
-        return error
-
-    # get the response
-    return forecast.get_activity_response()
+    baseurl = "http://139.59.38.156/Api_new/"
+    endurl = "?client_id=demobot&key=0a77716196b04d69b22792a119c3cdca"
+    print(action_name)
+    yql_url = baseurl + action_name
+    print(yql_url)
+    print(headers)
+    headers['client_id'] = 'demobot'
+    headers['key'] = '0a77716196b04d69b22792a119c3cdca'
+    gcontext = ssl.SSLContext(ssl.PROTOCOL_TLSv1)  # Only for gangstars
+    response = requests.get(yql_url, params=headers)
+    print(response)
+    return response
 
 
-def weather_condition(req):
-    """Returns a string containing a human-readable response to the user
-    with the probability of the provided weather condition occurring
-    or a prompt for more information
+def verify_user_demo(action_name, code, phone):
+    print("verify_user demo: ")
+    baseurl = "http://139.59.38.156/Api_new/"
+    endurl = "?client_id=demobot&key=0a77716196b04d69b22792a119c3cdca"
 
-    Takes a city, condition and (optional) dates
-    uses the template responses found in weather_responses.py as templates
-    and the conditions listed in weather_entities.py
-    """
+    yql_url = baseurl + action_name + endurl + \
+        '&code=' + str(code) + '&phone=' + str(phone)
+    print(yql_url)
 
-    # validate request parameters, return an error if there are issues
-    error, forecast_params = validate_params(req['queryResult']['parameters'])
-    if error:
-        return error
+    gcontext = ssl.SSLContext(ssl.PROTOCOL_TLSv1)  # Only for gangstars
+    response = urllib.request.urlopen(yql_url, context=gcontext).read()
+    print("verify_user result: ")
+    print(response)
 
-    # Check to make sure there is a activity, if not return an error
-    if not forecast_params['condition']:
-        return 'What weather condition would you like to check?'
-
-    # create a forecast object which retrieves the forecast from a external API
-    try:
-        forecast = Forecast(forecast_params)
-    # return an error if there is an error getting the forecast
-    except (ValueError, IOError) as error:
-        return error
-
-    # get the response
-    return forecast.get_condition_response()
+    return response.decode('utf-8')
 
 
-def weather_outfit(req):
-    """Returns a string containing text with a response to the user
-    with a indication if the outfit provided is appropriate for the
-    current weather or a prompt for more information
+def makeWebhookResult(text, data):
+    quick_replies = []
 
-    Takes a city, outfit and (optional) dates
-    uses the template responses found in weather_responses.py as templates
-    and the outfits listed in weather_entities.py
-    """
+    for reply in data:
+        quick_replies.append(
+            {
+                "content_type": "text",
+                "title": reply,
+                "payload": reply
+            })
 
-    # validate request parameters, return an error if there are issues
-    error, forecast_params = validate_params(req['queryResult']['parameters'])
-    if error:
-        return error
+    facebook_message = {
+        "text": text,
+        "quick_replies": quick_replies
+    }
 
-    # Validate that there are the required parameters to retrieve a forecast
-    if not forecast_params['outfit']:
-        return 'What are you planning on wearing?'
+    print(json.dumps(facebook_message))
+    print(data)
 
-    # create a forecast object which retrieves the forecast from a external API
-    try:
-        forecast = Forecast(forecast_params)
-    # return an error if there is an error getting the forecast
-    except (ValueError, IOError) as error:
-        return error
-
-    return forecast.get_outfit_response()
+    return {
+        "fulfillmentText": "",
+        "payload": {"facebook": facebook_message, "fb": {"title": text, "replies": data}},
+        # "contextOut": [],
+        "source": "apiai-v2-webhook-sample"
+    }
 
 
-def weather_temperature(req):
-    """Returns a string containing text with a response to the user
-    with a indication if temperature provided is consisting with the
-    current weather or a prompt for more information
+def show_university(headers, phone, email):
+    url = 'http://139.59.9.205:8002/v1/search/new'
+    gcontext = ssl.SSLContext(ssl.PROTOCOL_TLSv1)  # Only for gangstars
+    # response = requests.get(url, headers=headers)
+    #response = json.loads(requests.get(url)).get('results')
+    # http://139.59.9.205:8002/v1/search/new?toefl=90&q=mechanical & auto&country=uk
+    #headers['country'] = 'uk'
+    #headers['q'] = 'mechanical and automation'
+    #headers['toefl'] = '70'
+    response = requests.get(url, params=headers).json().get('results')
+    # print(url)
+    # print(headers)
+    # print(response)
+    source = 'https://mu-assets.s3.amazonaws.com/new/brand/univ/'
+    elements = []
+    count = 0
+    if(not response):
+        return
+    for i in response:
+        if(count == 10):
+            break
 
-    Takes a city, temperature and (optional) dates.  Temperature ranges for
-    hot, cold, chilly and warm can be configured in config.py
-    uses the template responses found in weather_responses.py as templates
-    """
+        image_url = i.get('course')[0].get('img')
 
-    parameters = req['queryResult']['parameters']
+        if(image_url == None):
+            image_url = "full/MU_default.png"
+        courses = []
+        for course in i.get('course'):
+            courses.append({
+                'pk': course.get('pk'),
+                'name': course.get('name'),
+                'country': course.get('univ').get('code')
+            })
 
-    # validate request parameters, return an error if there are issues
-    error, forecast_params = validate_params(parameters)
-    if error:
-        return error
+        elements.append(
+            {
+                "title": i.get('university'),
+                "image_url": source + image_url,
+                "courses": courses,
+                "count": i.get('count')
+            })
 
-    # If the user didn't specify a temperature, get the weather for them
-    if not forecast_params['temperature']:
-        return weather(req)
+        count = count + 1
 
-    # create a forecast object which retrieves the forecast from a external API
-    try:
-        forecast = Forecast(forecast_params)
-    # return an error if there is an error getting the forecast
-    except (ValueError, IOError) as error:
-        return error
+    facebook_message = {
+        "attachment": {
+            "type": "template",
+            "payload": {
+                "template_type": "generic",
+                "elements": elements
+            }
+        }
+    }
+    return {
+        "speech": "",
+        "displayText": "",
+        "data": {"facebook": facebook_message, "fb": elements},
+        # "contextOut": [],
+        "source": "apiai-weather-webhook-sample"
+    }
 
-    return forecast.get_temperature_response()
+
+def send_email_to_lead(headers, phone, email):
+    url = 'http://139.59.9.205:8002/v1/search/new'
+    gcontext = ssl.SSLContext(ssl.PROTOCOL_TLSv1)  # Only for gangstars
+    # response = requests.get(url, headers=headers)
+    #response = json.loads(requests.get(url)).get('results')
+    # http://139.59.9.205:8002/v1/search/new?toefl=90&q=mechanical & auto&country=uk
+    #headers['country'] = 'uk'
+    #headers['q'] = 'mechanical and automation'
+    #headers['toefl'] = '70'
+    response = requests.get(url, params=headers).json().get('results')
+    # print(url)
+    # print(headers)
+    # print(response)
+    source = 'https://mu-assets.s3.amazonaws.com/new/brand/univ/'
+    elements = []
+    count = 0
+    if(not response):
+        return
+    for i in response:
+        if(count == 10):
+            break
+
+        image_url = i.get('course')[0].get('img')
+
+        if(image_url == None):
+            image_url = "full/MU_default.png"
+        courses = []
+        for course in i.get('course'):
+            courses.append({
+                'pk': course.get('pk'),
+                'name': course.get('name'),
+                'country': course.get('univ').get('code')
+            })
+
+        elements.append(
+            {
+                "title": i.get('university'),
+                "image_url": source + image_url,
+                "courses": courses,
+                "count": i.get('count')
+            })
+
+        count = count + 1
+
+    facebook_message = {
+        "attachment": {
+            "type": "template",
+            "payload": {
+                "template_type": "generic",
+                "elements": "mail_send"
+            }
+        }
+    }
+    #baseurl = "http://localhost:8888/mu-beta/index.php/Api_new/"
+    baseurl = "https://app.meetuniversity.com/Api_new/"
+    yql_url = baseurl + 'bot_email_prediction'
+    print(yql_url)
+    headers = {}
+    headers['client_id'] = 'mubot'
+    headers['key'] = '0a77716196b04d69b22792a119c3cdca'
+    headers['phone'] = phone
+    headers['email'] = email
+    headers['data'] = str(json.dumps(elements, separators=(',', ':')))
+
+    gcontext = ssl.SSLContext(ssl.PROTOCOL_TLSv1)  # Only for gangstars
+    response = requests.get(yql_url, params=headers)
+    print(response)
+    return {
+        "speech": "",
+        "displayText": "",
+        "data": {"facebook": facebook_message, "fb": "mail_send"},
+        # "contextOut": [],
+        "source": "apiai-weather-webhook-sample"
+    }
 
 
 if __name__ == '__main__':
